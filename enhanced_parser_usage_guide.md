@@ -22,6 +22,57 @@ python swagger_time_parser.py <swagger_file> [-p PATTERN] [-p PATTERN] ...
 - `swagger_file`：必需参数，Swagger JSON文件路径
 - `-p, --pattern`：可选参数，要搜索的字段名模式（支持正则表达式，可多次使用）
 
+## 命令行使用方法
+
+### 基本语法
+```bash
+python enhanced_swagger_parser.py <API规范文件> [-p <搜索模式1>] [-p <搜索模式2>] ...
+```
+
+### 参数说明
+- `<API规范文件>`: 必需参数，指定要解析的Swagger 2.0或OpenAPI 3.x JSON文件路径
+- `-p, --pattern`: 可选参数，指定搜索模式（支持正则表达式）。可多次使用此参数指定多个模式。如果不指定，默认搜索`time`
+
+### 使用示例
+
+#### 1. 默认搜索（搜索包含"time"的字段）
+```bash
+python enhanced_swagger_parser.py api.json
+```
+
+#### 2. 搜索多个字段模式
+```bash
+python enhanced_swagger_parser.py api.json -p time -p date -p timestamp
+```
+
+#### 3. 使用正则表达式
+```bash
+python enhanced_swagger_parser.py api.json -p ".*time.*" -p ".*date.*"
+```
+
+#### 4. 搜索自定义字段
+```bash
+python enhanced_swagger_parser.py api.json -p id -p name -p status
+```
+
+#### 5. 复杂正则表达式搜索
+```bash
+python enhanced_swagger_parser.py api.json -p "^last.*" -p ".*_id$" -p ".*time.*"
+```
+
+#### 6. 用户原始问题的解决方案
+```bash
+# 搜索各种时间相关字段
+python enhanced_swagger_parser.py ./iam-server/docs/openapi.json \
+  -p ".*[tT]ime.*" \
+  -p ".*[Dd]ate.*" \
+  -p ".*[Ss]tart.*" \
+  -p ".*[Ee]nd.*" \
+  -p ".*[Cc]reate.*" \
+  -p ".*[Uu]pdate.*" \
+  -p ".*[Dd]elete.*"
+```
+
 ## 使用示例
 
 ### 1. 默认使用（向后兼容）

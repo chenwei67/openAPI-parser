@@ -296,9 +296,17 @@ class EnhancedSwaggerParser:
         """在schema中递归查找时间字段（兼容两种格式）"""
         time_fields = []
         
+        # 检查schema是否为None或空
+        if not schema or not isinstance(schema, dict):
+            return time_fields
+        
         # 处理$ref引用
         if '$ref' in schema:
             ref_path = schema['$ref']
+            # 检查$ref值是否为None或无效
+            if not ref_path or not isinstance(ref_path, str):
+                return time_fields
+                
             if ref_path in self.visited_refs:
                 return time_fields  # 避免循环引用
             
@@ -330,6 +338,12 @@ class EnhancedSwaggerParser:
         # 处理对象类型
         elif schema.get('type') == 'object' or 'properties' in schema:
             properties = schema.get('properties', {})
+            # 检查properties是否为None
+            if properties is None:
+                properties = {}
+            elif not isinstance(properties, dict):
+                return time_fields
+                
             for prop_name, prop_schema in properties.items():
                 new_path = prop_name if not parent_path else "{}.{}".format(parent_path, prop_name)
                 
@@ -421,14 +435,16 @@ def main():
     parser.add_argument('spec_file', help='API规范文件路径 (Swagger 2.0 或 OpenAPI 3.x JSON文件)')
     parser.add_argument(
         '-p', '--pattern', 
-        nargs='*',
-        default=['time'],
-        help='要搜索的字段模式（支持正则表达式），默认为"time"。可指定多个模式。'
+        action='append',
+        help='要搜索的字段模式（支持正则表达式）。可多次使用此参数指定多个模式。'
     )
     
     args = parser.parse_args()
     
-    swagger_parser = EnhancedSwaggerParser(search_patterns=args.pattern)
+    # 处理搜索模式参数
+    search_patterns = args.pattern if args.pattern else ['time']
+    
+    swagger_parser = EnhancedSwaggerParser(search_patterns=search_patterns)
     apis = swagger_parser.parse_file(args.spec_file)
     
     print("检测到的API规范版本: {}".format({
@@ -436,7 +452,7 @@ def main():
         'openapi3': 'OpenAPI 3.x'
     }.get(swagger_parser.spec_version, swagger_parser.spec_version)))
     
-    print("搜索模式: {}".format(', '.join(args.pattern)))
+    print("搜索模式: {}".format(', '.join(search_patterns)))
     print("\n找到 {} 个包含匹配字段的API\n".format(len(apis)))
     
     markdown_table = swagger_parser.generate_markdown_table(apis)

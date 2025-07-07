@@ -17,9 +17,10 @@ build_pattern() {
     echo "$pattern"
 }
 
-# 检查是否提供了文件参数
+# 检查是否提供了文件或目录参数
 if [[ $# -eq 0 ]]; then
-    echo "Usage: $0 <file1> [file2 ...]"
+    echo "Usage: $0 <file1|dir1> [file2|dir2 ...]"
+    echo "Supports both files and directories (recursive search)"
     exit 1
 fi
 
@@ -29,13 +30,36 @@ GREP_OPTIONS="-i -E"
 # 构建完整的grep模式
 PATTERN=$(build_pattern)
 
-# 执行grep命令
-for file in "$@"; do
-    if [[ ! -f "$file" ]]; then
-        echo "Warning: $file is not a regular file, skipping"
-        continue
-    fi
-    
+# 搜索文件的函数
+search_file() {
+    local file="$1"
     echo "Searching in $file:"
     grep $GREP_OPTIONS "$PATTERN" "$file"
+}
+
+# 递归搜索目录的函数
+search_directory() {
+    local dir="$1"
+    echo "Searching in directory: $dir"
+    
+    # 使用find命令递归查找所有文件
+    find "$dir" -type f -name "*.json" -o -name "*.yaml" -o -name "*.yml" -o -name "*.txt" -o -name "*.md" | while read -r file; do
+        if [[ -r "$file" ]]; then
+            search_file "$file"
+        fi
+    done
+}
+
+# 执行搜索命令
+for target in "$@"; do
+    if [[ -f "$target" ]]; then
+        # 如果是文件，直接搜索
+        search_file "$target"
+    elif [[ -d "$target" ]]; then
+        # 如果是目录，递归搜索
+        search_directory "$target"
+    else
+        echo "Warning: $target is neither a regular file nor a directory, skipping"
+        continue
+    fi
 done

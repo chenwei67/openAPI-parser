@@ -32,10 +32,16 @@ class APIInfo:
 
 
 class SwaggerTimeParser:
-    """Swagger 2.0时间字段解析器"""
+    """Swagger 2.0字段解析器（支持自定义搜索模式）"""
     
-    def __init__(self):
-        self.time_pattern = re.compile(r'time', re.IGNORECASE)
+    def __init__(self, search_patterns=None):
+        # 如果没有指定搜索模式，默认使用time
+        if search_patterns is None:
+            search_patterns = ['time']
+        
+        # 编译所有搜索模式为正则表达式
+        self.search_patterns = [re.compile(pattern, re.IGNORECASE) for pattern in search_patterns]
+        self.pattern_strings = search_patterns  # 保存原始字符串用于显示
         self.apis = []
         self.definitions = {}
         self.visited_refs = set()
@@ -109,8 +115,8 @@ class SwaggerTimeParser:
         param_type = param.get('type', '')
         description = param.get('description', '')
         
-        # 检查参数名是否包含time
-        if self.time_pattern.search(param_name):
+        # 检查参数名是否匹配任何搜索模式
+        if self._matches_any_pattern(param_name):
             location = "{}参数".format(param_in)
             time_fields.append(TimeField(
                 field_path=param_name,
@@ -178,8 +184,8 @@ class SwaggerTimeParser:
             for prop_name, prop_schema in properties.items():
                 new_path = prop_name if not parent_path else "{}.{}".format(parent_path, prop_name)
                 
-                # 检查属性名是否包含time
-                if self.time_pattern.search(prop_name):
+                # 检查属性名是否匹配任何搜索模式
+                if self._matches_any_pattern(prop_name):
                     prop_type = prop_schema.get('type', 'unknown')
                     prop_description = prop_schema.get('description', '')
                     time_fields.append(TimeField(
@@ -221,23 +227,57 @@ class SwaggerTimeParser:
                 )
         
         return "\n".join(lines)
+    
+    def _matches_any_pattern(self, field_name):
+        """检查字段名是否匹配任何搜索模式"""
+        return any(pattern.search(field_name) for pattern in self.search_patterns)
 
 
 def main():
     """主函数"""
     import sys
+    import argparse
     
-    if len(sys.argv) != 2:
-        print("使用方法: python swagger_time_parser.py <swagger_json_file>")
-        sys.exit(1)
+    # 创建命令行参数解析器
+    parser_args = argparse.ArgumentParser(
+        description='Swagger 2.0字段解析器，支持自定义搜索模式',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+示例用法:
+  python swagger_time_parser.py api.json                    # 默认搜索time字段
+  python swagger_time_parser.py api.json -p time date      # 搜索time和date字段
+  python swagger_time_parser.py api.json -p "create.*time" # 使用正则表达式
+  python swagger_time_parser.py api.json -p time -p date   # 多次使用-p参数
+        '''
+    )
     
-    swagger_file = sys.argv[1]
+    parser_args.add_argument('swagger_file', help='Swagger JSON文件路径')
+    parser_args.add_argument(
+        '-p', '--pattern', 
+        action='append',
+        dest='patterns',
+        help='要搜索的字段名模式（支持正则表达式，可多次使用）'
+    )
+    
+    args = parser_args.parse_args()
+    
+    # 如果没有指定模式，使用默认的time
+    search_patterns = args.patterns if args.patterns else ['time']
     
     try:
-        parser = SwaggerTimeParser()
-        apis = parser.parse_swagger_file(swagger_file)
-        markdown_table = parser.generate_markdown_table(apis)
-        print(markdown_table)
+        parser = SwaggerTimeParser(search_patterns)
+        print("搜索模式: {}".format(', '.join(parser.pattern_strings)))
+        print("正在解析文件: {}\n".format(args.swagger_file))
+        
+        apis = parser.parse_swagger_file(args.swagger_file)
+        
+        if apis:
+            print("找到 {} 个包含匹配字段的API\n".format(len(apis)))
+            markdown_table = parser.generate_markdown_table(apis)
+            print(markdown_table)
+        else:
+            print("没有找到包含匹配字段的API")
+            
     except Exception as e:
         print("错误: {}".format(e))
         sys.exit(1)

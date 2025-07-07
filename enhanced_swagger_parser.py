@@ -32,12 +32,24 @@ class APIInfo:
 class EnhancedSwaggerParser:
     """增强版Swagger/OpenAPI解析器，支持2.0和3.x版本"""
     
-    def __init__(self):
-        self.time_pattern = re.compile(r'time', re.IGNORECASE)
+    def __init__(self, search_patterns=None):
+        # 支持自定义搜索模式，默认为['time']
+        if search_patterns is None:
+            search_patterns = ['time']
+        self.search_patterns = search_patterns
+        # 编译所有搜索模式为正则表达式
+        self.compiled_patterns = [re.compile(pattern, re.IGNORECASE) for pattern in search_patterns]
         self.apis = []
         self.schemas = {}  # 统一的schema存储，兼容definitions和components/schemas
         self.visited_refs = set()
         self.spec_version = None  # 'swagger2' 或 'openapi3'
+    
+    def _matches_any_pattern(self, field_name):
+        """检查字段名是否匹配任何搜索模式"""
+        for pattern in self.compiled_patterns:
+            if pattern.search(field_name):
+                return True
+        return False
     
     def parse_file(self, file_path):
         """解析Swagger/OpenAPI JSON文件"""
@@ -187,8 +199,8 @@ class EnhancedSwaggerParser:
         param_type = param.get('type', '')
         description = param.get('description', '')
         
-        # 检查参数名是否包含time
-        if self.time_pattern.search(param_name):
+        # 检查参数名是否匹配任何搜索模式
+        if self._matches_any_pattern(param_name):
             location = "{}参数".format(param_in)
             time_fields.append(TimeField(
                 field_path=param_name,
@@ -213,8 +225,8 @@ class EnhancedSwaggerParser:
         param_in = param.get('in', '')
         description = param.get('description', '')
         
-        # 检查参数名是否包含time
-        if self.time_pattern.search(param_name):
+        # 检查参数名是否匹配任何搜索模式
+        if self._matches_any_pattern(param_name):
             # OpenAPI 3.x中参数类型在schema中
             param_type = 'unknown'
             if 'schema' in param:
@@ -321,8 +333,8 @@ class EnhancedSwaggerParser:
             for prop_name, prop_schema in properties.items():
                 new_path = prop_name if not parent_path else "{}.{}".format(parent_path, prop_name)
                 
-                # 检查属性名是否包含time
-                if self.time_pattern.search(prop_name):
+                # 检查属性名是否匹配任何搜索模式
+                if self._matches_any_pattern(prop_name):
                     prop_type = prop_schema.get('type', 'unknown')
                     prop_description = prop_schema.get('description', '')
                     time_fields.append(TimeField(
@@ -393,28 +405,42 @@ class EnhancedSwaggerParser:
 def main():
     """主函数"""
     import sys
+    import argparse
     
-    if len(sys.argv) != 2:
-        print("使用方法: python enhanced_swagger_parser.py <api_spec_file>")
-        print("支持的格式:")
-        print("  - Swagger 2.0")
-        print("  - OpenAPI 3.0.x")
-        print("  - OpenAPI 3.1.x")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description='增强版Swagger/OpenAPI解析器，支持自定义字段搜索模式',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""使用示例:
+  python enhanced_swagger_parser.py api.json                    # 默认搜索'time'字段
+  python enhanced_swagger_parser.py api.json -p time date      # 搜索'time'和'date'字段
+  python enhanced_swagger_parser.py api.json -p ".*time.*"     # 使用正则表达式
+  python enhanced_swagger_parser.py api.json -p id name status # 搜索多个自定义字段
+        """
+    )
     
-    spec_file = sys.argv[1]
+    parser.add_argument('spec_file', help='API规范文件路径 (Swagger 2.0 或 OpenAPI 3.x JSON文件)')
+    parser.add_argument(
+        '-p', '--pattern', 
+        nargs='*',
+        default=['time'],
+        help='要搜索的字段模式（支持正则表达式），默认为"time"。可指定多个模式。'
+    )
+    
+    args = parser.parse_args()
     
     try:
-        parser = EnhancedSwaggerParser()
-        apis = parser.parse_file(spec_file)
+        swagger_parser = EnhancedSwaggerParser(search_patterns=args.pattern)
+        apis = swagger_parser.parse_file(args.spec_file)
         
         print("检测到的API规范版本: {}".format({
             'swagger2': 'Swagger 2.0',
             'openapi3': 'OpenAPI 3.x'
-        }.get(parser.spec_version, parser.spec_version)))
-        print("\n找到 {} 个包含时间字段的API\n".format(len(apis)))
+        }.get(swagger_parser.spec_version, swagger_parser.spec_version)))
         
-        markdown_table = parser.generate_markdown_table(apis)
+        print("搜索模式: {}".format(', '.join(args.pattern)))
+        print("\n找到 {} 个包含匹配字段的API\n".format(len(apis)))
+        
+        markdown_table = swagger_parser.generate_markdown_table(apis)
         print(markdown_table)
         
     except Exception as e:

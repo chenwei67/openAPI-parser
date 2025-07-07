@@ -428,24 +428,19 @@ def main():
     
     args = parser.parse_args()
     
-    try:
-        swagger_parser = EnhancedSwaggerParser(search_patterns=args.pattern)
-        apis = swagger_parser.parse_file(args.spec_file)
-        
-        print("检测到的API规范版本: {}".format({
-            'swagger2': 'Swagger 2.0',
-            'openapi3': 'OpenAPI 3.x'
-        }.get(swagger_parser.spec_version, swagger_parser.spec_version)))
-        
-        print("搜索模式: {}".format(', '.join(args.pattern)))
-        print("\n找到 {} 个包含匹配字段的API\n".format(len(apis)))
-        
-        markdown_table = swagger_parser.generate_markdown_table(apis)
-        print(markdown_table)
-        
-    except Exception as e:
-        print("错误: {}".format(e))
-        sys.exit(1)
+    swagger_parser = EnhancedSwaggerParser(search_patterns=args.pattern)
+    apis = swagger_parser.parse_file(args.spec_file)
+    
+    print("检测到的API规范版本: {}".format({
+        'swagger2': 'Swagger 2.0',
+        'openapi3': 'OpenAPI 3.x'
+    }.get(swagger_parser.spec_version, swagger_parser.spec_version)))
+    
+    print("搜索模式: {}".format(', '.join(args.pattern)))
+    print("\n找到 {} 个包含匹配字段的API\n".format(len(apis)))
+    
+    markdown_table = swagger_parser.generate_markdown_table(apis)
+    print(markdown_table)
 
 
 if __name__ == "__main__":
